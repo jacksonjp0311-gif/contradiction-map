@@ -1,0 +1,42 @@
+{
+  "url": "https://github.com/jacksonjp0311-gif/contradiction-map",
+  "status": "complete",
+  "elapsed_seconds": 0.89,
+  "transport": "Running localhost companion POST /api/scan mode=url; actual unauthenticated GitHub API + codeload network requests",
+  "target_code_executed": false,
+  "schema_version": "1.0",
+  "target": {
+    "name": "jacksonjp0311-gif/contradiction-map",
+    "kind": "url"
+  },
+  "summary": {
+    "files_scanned": 50,
+    "bytes_scanned": 171724,
+    "files_skipped": 0,
+    "deterministic": 4,
+    "heuristic": 2,
+    "findings": 6
+  },
+  "rule_counts": {
+    "NPM001": 2,
+    "NPM002": 2,
+    "PY001": 2
+  },
+  "finding_paths": [
+    "contradiction_map/demo/package-lock.json",
+    "contradiction_map/demo/package.json",
+    "contradiction_map/demo/pyproject.toml",
+    "contradiction_map/demo/src/lumen_service/__init__.py",
+    "fixtures/demo/package-lock.json",
+    "fixtures/demo/package.json",
+    "fixtures/demo/pyproject.toml",
+    "fixtures/demo/src/lumen_service/__init__.py"
+  ],
+  "warnings": [
+    "Imported public default-branch archive without credentials. History, submodules and linked files were not downloaded; archive entries outside engine limits were skipped."
+  ],
+  "truncated": false,
+  "tested_public_main_commit": "c5b7d24c0289b26ae4cef91891d2daae4b5774b6",
+  "interpretation": "Six findings are intentional declarations in fixtures/demo and contradiction_map/demo, not newly discovered defects in the application. The root scan does not resolve nested demo direct imports or choose a single port across multiple fixtures; scanning the demo folder alone returns all five expected findings.",
+  "scope": "Default-branch public archive only, bounded UTF-8 eligible text. Archive prefiltering omits unsupported files (including screenshots), secrets/vendor/generated paths and linked entries before engine collection; summary.files_skipped is the engine-stage count, not a census of all archive exclusions."
+}

@@ -14,7 +14,7 @@ Initial release, verified locally on Windows / Python 3.12.10 / Node 24.19.0. Ru
 | Clean/intentional differences | Clean fixture and false-positive fixture each produce 0 findings; dynamic values, distinct identities, optional/missing dependencies, import shadowing and doc examples abstain | General semantics and author intent not analyzed |
 | Untrusted input | Malformed JSON/TOML/Python; duplicate and long/minified values; Unicode/control text; no source execution; secret/vendor filters; traversal, size and output limits | Stable-checkout assumption; no race-free sandbox against malicious concurrent filesystem mutation |
 | Local companion | Token/Host/Origin rejection, static allowlist, request bounds, job cancellation/repeat, bounded picker fallback, safe error responses | Trusted local desktop process, not a multi-user server |
-| Public import | Mocked archive/network fixtures cover fixed origins, private/redirect rejection, traversal, symlinks, duplicate paths and archive bounds | GitHub rate limits/network failures remain possible; live smoke result recorded below after publication |
+| Public import | Mocked archive/network fixtures cover fixed origins, private/redirect rejection, traversal, symlinks, duplicate paths and archive bounds | GitHub rate limits/network failures remain possible; live default-branch smoke passed; exact receipt below |
 
 This is a behavior/rule coverage report. **No line or branch coverage percentage was measured.** Passing the fixtures does not establish complete contradiction detection, security proof, novelty or agent performance improvement.
 
@@ -24,10 +24,20 @@ Real browser checks exercise the local service, not a static mock. The original 
 
 The browser directory picker selected the synthetic demo through the built-in browser and produced all five findings, including the direct-import test candidate. Edge automation could not set selected files because its extension lacks file-URL permission; no permission or security setting was changed. The built-in browser completed the same selection successfully. Typed local paths remain a separate real companion-service route.
 
-Final browser QA and public-import smoke notes are appended with the release evidence. No private repository was scanned or published.
+No private repository was scanned or published.
 
 ## Deliberate limitations
 
 Five explicit comparison rules; bounded UTF-8 text; static literals rather than runtime behavior; no target code/test execution; no automatic repairs; no arbitrary Git hosting or private URL imports; no file watcher; graph is evidence relationships, not a full call graph. A clean or truncated report cannot establish consistency. Exclusions are not a secret-scanning guarantee. Wheel builds, minimum-version execution and non-Windows desktop UI have not been validated.
 
 Final browser checks: desktop (1440-pixel target) and mobile (390-pixel target, document width 375 including scrollbar layout) screenshots inspected. Mobile evidence text measured 12px; no horizontal document overflow. Selecting PY002 highlighted settings.py and tests/test_settings.py and showed the exact 3-versus-5 assertion; Flat view rendered all five findings. The redesigned banner was rendered and visually inspected in a local HTML wrapper.
+
+## Post-publication live public-URL smoke
+
+**Passed** against this new public repository at main commit `c5b7d24c0289b26ae4cef91891d2daae4b5774b6`, through the running companion's actual `POST /api/scan` URL mode and job polling. This used real unauthenticated GitHub API and codeload requests, not mocked network responses. The job completed in 0.89 seconds; it returned schema 1.0 with target kind `url`, 50 eligible text files / 171,724 bytes, no engine truncation, four deterministic findings and two heuristic candidates.
+
+All six findings are deliberate synthetic version/dependency mismatches in `fixtures/demo` and the bundled `contradiction_map/demo`: two each from NPM001, NPM002 and PY001. They are not newly discovered defects in Contradiction Map. A whole-project scan does not resolve nested demo test imports or pick a single port among several fixture copies; scanning the demo folder alone still yields its five expected findings. No downloaded code, tests, dependencies or hooks were executed. No credentials or model APIs were used for the import.
+
+Public archive prefiltering omits unsupported files (including screenshots), secret/vendor/generated paths and linked entries before engine collection. Here `summary.files_skipped = 0` describes the engine-stage input, not a census of archive exclusions. The report retained the warning about default-branch-only import, skipped archive entries, missing history/submodules/links, and bounded scope. This is a successful smoke check of one small public repository, not exhaustive compatibility, network reliability or security validation. The subsequent release update changes documentation only.
+
+[Machine-readable actual smoke receipt](public-import-smoke.json).

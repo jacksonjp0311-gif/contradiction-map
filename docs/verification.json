@@ -15,5 +15,12 @@
   "powershell_entrypoint": "passed",
   "line_coverage": "not measured",
   "branch_coverage": "not measured",
-  "precision_recall": "not measured"
+  "precision_recall": "not measured",
+  "live_public_import": {
+    "status": "passed",
+    "source_commit": "c5b7d24c0289b26ae4cef91891d2daae4b5774b6",
+    "files_scanned": 50,
+    "findings": 6,
+    "receipt": "public-import-smoke.json"
+  }
 }
