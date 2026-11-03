@@ -15,10 +15,12 @@ Requires **Python 3.11+**. The running application has **zero third-party Python
 ```powershell
 git clone https://github.com/jacksonjp0311-gif/contradiction-map.git
 cd contradiction-map
-.\Start-ContradictionMap.ps1
+.\Start-ContradictionMap.cmd
 ```
 
-The entry script opens `http://127.0.0.1:8765`. Keep its terminal open; press **Ctrl+C** to stop. If your existing PowerShell policy does not allow scripts, use `python -m contradiction_map serve --open` from the same folder. No execution-policy changes are needed. To use another port: `.\Start-ContradictionMap.ps1 serve --port 8768 --open`.
+The Windows launcher opens `http://127.0.0.1:8765`. You can also double-click **Start-ContradictionMap.cmd** in File Explorer. Keep its terminal open; press **Ctrl+C** to stop. Opening it again reuses a verified running Contradiction Map instance. If another application owns that port, choose a different port: `.\Start-ContradictionMap.cmd serve --port 8768 --open`.
+
+The PowerShell entry script remains available as `.\Start-ContradictionMap.ps1` when your existing script policy allows it. The command launcher and `python -m contradiction_map serve --open` require no PowerShell policy changes.
 
 On macOS/Linux, use `python3 -m contradiction_map serve --open` from the cloned folder. Windows is the locally verified platform for this initial release. Run from the source checkout; building/distributing wheels is outside the verified workflow.
 
@@ -32,6 +34,14 @@ On macOS/Linux, use `python3 -m contradiction_map serve --open` from the cloned 
 The **Flat view** presents findings as readable buttons in document order. All primary actions are keyboard accessible, status updates use a live region, and reduced-motion preferences disable ornamental animation. Choose folder uses a standard browser directory picker. Typed local paths are read by the local companion when a browser cannot select a directory. No native desktop dialog dependency is required.
 
 <p><img src="docs/screenshots/demo.jpg" alt="Real local demo scan: ranked conflicts, a connected file graph and exact source evidence" width="100%"></p>
+
+## Your first test run
+
+1. Click **Explore demo**. Expect **5 findings: 2 deterministic conflicts and 3 heuristic candidates** across 7 text files.
+2. Select **Test equality expects a different constant literal**. The source evidence should show `MAX_RETRIES = 3`; the test expects `5`. The graph highlights those two files.
+3. Switch to **Flat view**, try the **Candidates** filter, and export the JSON report.
+4. Paste the full local path to the checkout's `fixtures/clean` folder, or choose that folder. Expect **0 findings**. This verifies the clean example, not the consistency of arbitrary repositories.
+5. Use **Refresh** after an edit to a local-path target. Browser-picked files require reselection, which Refresh opens for you. Public URL mode accepts a canonical root URL such as this project's GitHub URL; scanning this whole project also finds its intentionally inconsistent demo copies.
 
 ## What it actually detects
 
@@ -51,14 +61,14 @@ Read the [rule catalog](docs/RULES.md) for exact matching conditions and abstent
 
 ```powershell
 # Human-readable findings, no modifications to the target
-.\Start-ContradictionMap.ps1 scan .ixtures\demo
+.\Start-ContradictionMap.cmd scan .\fixtures\demo
 
 # JSON on stdout, or write to an explicit local file
-python -m contradiction_map scan .ixtures\demo --json
+python -m contradiction_map scan .\fixtures\demo --json
 python -m contradiction_map scan C:\path\to\repo --json --output report.json
 
 # Opt-in failure threshold for an agent or local gate
-python -m contradiction_map scan .ixtures\demo --json --fail-on deterministic
+python -m contradiction_map scan .\fixtures\demo --json --fail-on deterministic
 ```
 
 Exit codes: `0` completed (including findings unless a failure threshold was selected), `1` selected finding threshold met, `2` input/operation error, `130` interrupted. JSON schema `1.0` includes `target`, `summary`, `findings`, collected `files` and `coverage`. Warnings and `coverage.truncated` must travel with findings. See [the JSON contract](docs/JSON.md).
@@ -101,10 +111,11 @@ The collector excludes `.git`, common vendor/build/generated folders, binary/non
 
 ```powershell
 python -m unittest discover -s tests -v
+node --test tests/ui-state.test.cjs
 python -m compileall -q contradiction_map tests
 node --check contradiction_map/web/app.js
 ```
 
-Tests use only synthetic fixtures and temporary folders. They exercise expected conflicts, clean/false-positive cases, path and file limits, cancellation, HTTP authorization and public-import boundaries. [Verification notes](docs/COVERAGE.md) separate tested behavior from untested behavior. There is no CI workflow, hosted runner usage or benchmark accuracy claim.
+Node is needed only for the optional UI developer checks, not to run the app. Tests use only synthetic fixtures and temporary folders. They exercise expected conflicts, clean/false-positive cases, path and file limits, cancellation, HTTP authorization and public-import boundaries. [Verification notes](docs/COVERAGE.md) separate tested behavior from untested behavior. There is no CI workflow, hosted runner usage or benchmark accuracy claim.
 
 To extend a rule, add a discriminating parser-level comparison with exact evidence, a positive fixture and an intentional/clean counterexample. Keep candidate findings distinct from deterministic invariants. [MIT licensed](LICENSE).

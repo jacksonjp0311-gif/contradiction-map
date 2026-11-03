@@ -22,7 +22,7 @@ def main(argv=None):
     scan_parser.add_argument("--fail-on",choices=["deterministic","any"],help="Return exit 1 if the chosen findings are present")
     serve_parser = sub.add_parser("serve",help="Start the localhost UI and companion service")
     serve_parser.add_argument("--port",type=_port,default=8765)
-    serve_parser.add_argument("--open",action="store_true",help="Open the UI in the default browser")
+    serve_parser.add_argument("--open",action="store_true",help="Open the UI or reopen a verified running local instance")
     args = parser.parse_args(argv)
     try:
         if args.command == "serve":
@@ -39,7 +39,13 @@ def main(argv=None):
                 lines.append(f"\n{finding['rank']}. [{finding['severity']}/{finding['kind']}] {finding['rule_id']} {finding['title']}")
                 lines.append(finding["explanation"])
                 for evidence in finding["evidence"]:
-                    lines.append(f"  {evidence['path']}:{evidence['line']}  {evidence['text']}")
+                    location = f"{evidence['path']}:{evidence['line']}"
+                    if evidence.get("column"):
+                        location += f":{evidence['column']}"
+                    excerpt_note = ""
+                    if evidence.get("truncated"):
+                        excerpt_note = f" [bounded excerpt begins at column {evidence.get('excerpt_start_column', 1)}; line truncated]"
+                    lines.append(f"  {location}  {evidence['text']}{excerpt_note}")
             lines.extend(f"Warning: {w}" for w in report["coverage"]["warnings"])
             lines.append("\nA clean result is not proof of consistency. Use --json for coverage and limitations.")
             output = "\n".join(lines)

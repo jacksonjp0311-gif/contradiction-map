@@ -1,11 +1,14 @@
 """Loopback-only companion UI. Never executes code from analyzed repositories."""
 from __future__ import annotations
 
+import errno
 import hmac
+import http.client
 import io
 import json
 import re
 import secrets
+import socket
 import threading
 import time
 import urllib.error
@@ -14,12 +17,17 @@ import urllib.request
 import webbrowser
 import zipfile
 from collections import OrderedDict
+from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 
 from . import __version__
 from .engine import MAX_FILES, MAX_FILE_BYTES, MAX_TOTAL_BYTES, ScanError, _excluded, _safe_name, scan, scan_files
 
+APP_ID = "contradiction-map"
+MAX_PROBE_BYTES = 128 * 1024
+PROBE_TIMEOUT = 1.0
+PRIVACY_MESSAGE = "Local analysis stays on this machine. Public URL import contacts GitHub without credentials; no model APIs are used."
 MAX_REQUEST_BYTES = 12 * 1024 * 1024
 MAX_DOWNLOAD_BYTES = 16 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 32 * 1024 * 1024
@@ -221,7 +229,13 @@ class JobManager:
 
 class LocalServer(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    # Windows SO_REUSEADDR can permit another process to bind the same live port.
+    allow_reuse_address = not hasattr(socket, "SO_EXCLUSIVEADDRUSE")
+
+    def server_bind(self):
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
     def __init__(self, address, handler=None):
         if address[0] != "127.0.0.1":
@@ -294,7 +308,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._authorized(api=path.startswith("/api/")):
             return
         if path == "/api/info":
-            self._json(200, {"version": __version__, "limits": {"max_files": MAX_FILES, "max_file_bytes": MAX_FILE_BYTES, "max_bytes": MAX_TOTAL_BYTES, "max_total_bytes": MAX_TOTAL_BYTES, "max_request_bytes": MAX_REQUEST_BYTES}, "privacy": "Local analysis stays on this machine. Public URL import contacts GitHub without credentials; no model APIs are used."})
+            self._json(200, {"app_id": APP_ID, "version": __version__, "limits": {"max_files": MAX_FILES, "max_file_bytes": MAX_FILE_BYTES, "max_bytes": MAX_TOTAL_BYTES, "max_total_bytes": MAX_TOTAL_BYTES, "max_request_bytes": MAX_REQUEST_BYTES}, "privacy": PRIVACY_MESSAGE})
         elif path.startswith("/api/jobs/"):
             job = self.server.jobs.get(path[len("/api/jobs/"):])
             self._json(200 if job else 404, job or {"error": "Scan not found; run a new scan."})
@@ -339,8 +353,110 @@ class Handler(BaseHTTPRequestHandler):
         self._json(405, {"error": "Cross-origin access is disabled."})
 
 
+class _SessionTokenParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.tokens = []
+        self.title = []
+        self.in_title = False
+
+    def handle_starttag(self, tag, attributes):
+        if tag.lower() == "title":
+            self.in_title = True
+        if tag.lower() == "meta":
+            fields = dict(attributes)
+            if fields.get("name") == "session-token":
+                self.tokens.append(fields.get("content", ""))
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "title":
+            self.in_title = False
+
+    def handle_data(self, data):
+        if self.in_title:
+            self.title.append(data)
+
+
+def _probe_response(port, path, token=None):
+    """Read bounded loopback metadata directly: no proxies, cookies or redirects."""
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=PROBE_TIMEOUT)
+    try:
+        headers = {"X-Contradiction-Token": token} if token else {}
+        connection.request("GET", path, headers=headers)
+        response = connection.getresponse()
+        if response.status != 200:
+            raise ValueError("Unexpected probe status")
+        size = response.getheader("Content-Length")
+        if size is not None and (not size.isdigit() or int(size) > MAX_PROBE_BYTES):
+            raise ValueError("Oversized probe response")
+        body = response.read(MAX_PROBE_BYTES + 1)
+        if len(body) > MAX_PROBE_BYTES:
+            raise ValueError("Oversized probe response")
+        content_type = response.getheader("Content-Type", "").split(";", 1)[0].strip().lower()
+        return content_type, body, response.getheader("Server", "")
+    finally:
+        connection.close()
+
+
+def _is_existing_service(port):
+    """Recognize this app's local protocol; this is not multi-user authentication."""
+    try:
+        content_type, body, page_server = _probe_response(port, "/")
+        if content_type != "text/html":
+            return False
+        parser = _SessionTokenParser()
+        parser.feed(body.decode("utf-8"))
+        if len(parser.tokens) != 1 or not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", parser.tokens[0]):
+            return False
+        content_type, body, api_server = _probe_response(port, "/api/info", parser.tokens[0])
+        if content_type != "application/json":
+            return False
+        metadata = json.loads(body)
+        if not isinstance(metadata, dict):
+            return False
+        if metadata.get("app_id") == APP_ID:
+            return (isinstance(metadata.get("version"), str) and bool(metadata["version"])
+                    and isinstance(metadata.get("limits"), dict))
+        # Initial 0.1.0 instances lack app_id. Require the complete known fingerprint,
+        # not merely a generic version field or an arbitrary page with a meta token.
+        expected_limits = {"max_files": MAX_FILES, "max_file_bytes": MAX_FILE_BYTES,
+                           "max_bytes": MAX_TOTAL_BYTES, "max_total_bytes": MAX_TOTAL_BYTES,
+                           "max_request_bytes": MAX_REQUEST_BYTES}
+        limits = metadata.get("limits")
+        return ("app_id" not in metadata and metadata.get("version") == "0.1.0"
+                and page_server.split(" ", 1)[0] == "ContradictionMap"
+                and api_server.split(" ", 1)[0] == "ContradictionMap"
+                and "".join(parser.title) == "Contradiction Map \u00b7 Evidence, connected"
+                and metadata.get("privacy") == PRIVACY_MESSAGE
+                and isinstance(limits, dict)
+                and all(limits.get(key) == value for key, value in expected_limits.items()))
+    except (OSError, http.client.HTTPException, UnicodeError, ValueError, RecursionError):
+        return False
+
+
 def serve(host="127.0.0.1", port=8765, open_browser=False):
-    with LocalServer((host, port)) as httpd:
+    if host != "127.0.0.1":
+        raise ValueError("The companion server only binds to 127.0.0.1.")
+    url = f"http://127.0.0.1:{port}"
+    if open_browser and _is_existing_service(port):
+        print(f"Opening the running Contradiction Map app | {url}")
+        if not webbrowser.open(url):
+            print(f"The browser did not open automatically. Open {url} manually.")
+        return
+    try:
+        httpd = LocalServer((host, port))
+    except OSError as exc:
+        if exc.errno not in (errno.EADDRINUSE, errno.EACCES) and getattr(exc, "winerror", None) not in (10048, 10013):
+            raise
+        url = f"http://127.0.0.1:{port}"
+        if open_browser and _is_existing_service(port):
+            print(f"Opening the running Contradiction Map app | {url}")
+            if not webbrowser.open(url):
+                print(f"The browser did not open automatically. Open {url} manually.")
+            return
+        raise OSError(f"Port {port} is already in use or restricted. Close the other app or choose another port, "
+                      "for example: python -m contradiction_map serve --port 8768 --open") from None
+    with httpd:
         url = f"http://127.0.0.1:{httpd.server_port}"
         print(f"Contradiction Map {__version__} | {url}")
         print("Local companion only. Ctrl+C to stop. No model APIs or target code execution.")

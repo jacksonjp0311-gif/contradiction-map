@@ -4,15 +4,15 @@
   "python": "3.12.10",
   "node": "24.19.0",
   "tests": {
-    "total": 62,
-    "passed": 61,
+    "total": 75,
+    "passed": 74,
     "skipped": 1,
     "failed": 0,
     "skip_reason": "Windows symbolic-link creation privilege unavailable"
   },
   "compileall": "passed",
   "javascript_syntax": "passed",
-  "powershell_entrypoint": "passed",
+  "powershell_entrypoint": "passed in original test shell; default Windows PowerShell script policy blocks it; no policy changes",
   "line_coverage": "not measured",
   "branch_coverage": "not measured",
   "precision_recall": "not measured",
@@ -22,5 +22,19 @@
     "files_scanned": 50,
     "findings": 6,
     "receipt": "public-import-smoke.json"
-  }
+  },
+  "ui_state_tests": {
+    "total": 8,
+    "passed": 8,
+    "failed": 0
+  },
+  "windows_command_launcher": "passed from outside checkout",
+  "polish_browser_checks": [
+    "clean input",
+    "repeated refresh",
+    "invalid path with previous result",
+    "long-line exact columns and bounded note",
+    "flat citations",
+    "actual JSON export verified"
+  ]
 }

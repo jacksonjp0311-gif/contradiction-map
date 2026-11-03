@@ -2,7 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const token = document.querySelector('meta[name="session-token"]').content;
-  const state = { result: null, selected: null, filter: 'all', job: null, busy: false, lastRequest: null, lastClientNote: null, lastInputValue: '', lastFilePicker: 'files-input', reading: false, readCancelled: false, epoch: 0, start: 0, limits: { max_files: 500, max_total_bytes: 8 * 1024 * 1024, max_file_bytes: 512 * 1024 } };
+  const state = { result: null, selected: null, filter: 'all', job: null, busy: false, lastRequest: null, lastClientNote: null, lastInputValue: '', lastFilePicker: 'files-input', reading: false, readCancelled: false, disconnected: false, pollTimer: null, epoch: 0, start: 0, limits: { max_files: 500, max_total_bytes: 8 * 1024 * 1024, max_file_bytes: 512 * 1024 } };
   const ns = 'http://www.w3.org/2000/svg';
   const el = (tag, className, content) => { const element = document.createElement(tag); if (className) element.className = className; if (content !== undefined) element.textContent = content; return element; };
   const svg = (tag, attrs, parent) => { const element = document.createElementNS(ns, tag); Object.entries(attrs || {}).forEach(([key, value]) => element.setAttribute(key, String(value))); if (parent) parent.append(element); return element; };
@@ -11,12 +11,22 @@
   const confidence = finding => Math.round(Number(finding.confidence || 0) * 100) + '% rule weight';
   const kindName = finding => finding.kind === 'deterministic' ? 'Deterministic' : 'Heuristic candidate';
   const pathsFor = finding => [...new Set([...(finding.related_paths || []), ...(finding.evidence || []).map(item => item.path)])];
+  class ApiError extends Error {
+    constructor(message, status = 0) { super(message); this.name = 'ApiError'; this.status = status; }
+  }
   async function api(path, body) {
-    const response = await fetch(path, { method: body === undefined ? 'GET' : 'POST', headers: { 'X-Contradiction-Token': token, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' });
-    let data;
-    try { data = await response.json(); } catch { throw new Error('The local companion returned an unreadable response. Check its terminal and refresh this page.'); }
-    if (!response.ok) throw new Error(asText(data.error || data.message) || `Local service error (${response.status}).`);
-    return data;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
+    try {
+      const response = await fetch(path, { method: body === undefined ? 'GET' : 'POST', headers: { 'X-Contradiction-Token': token, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store', signal: controller.signal });
+      let data;
+      try { data = await response.json(); } catch (error) { if (error.name === 'AbortError') throw error; throw new ApiError('The local companion returned an unreadable response.', response.status); }
+      if (!response.ok) throw new ApiError(asText(data.error || data.message) || `Local service error (${response.status}).`, response.status);
+      return data;
+    } catch (error) {
+      if (error.name === 'AbortError') throw new ApiError('The local companion did not respond within 10 seconds.');
+      throw error;
+    } finally { window.clearTimeout(timeout); }
   }
   function setStatus(message, kind = '', timing = '') {
     $('status-text').textContent = message;
@@ -25,6 +35,7 @@
   }
   function setBusy(busy) {
     state.busy = busy;
+    state.disconnected = false;
     ['scan-button', 'folder-button', 'files-button', 'demo-button', 'empty-demo-button', 'target-input'].forEach(id => { const item = $(id); if (item) item.disabled = busy; });
     $('scan-button').hidden = busy;
     $('cancel-button').hidden = !busy;
@@ -57,36 +68,61 @@
       if (!state.result) showError(error.message);
     }
   }
-  async function pollJob(id, epoch) {
-    try {
-      const job = await api('/api/jobs/' + encodeURIComponent(id));
-      if (epoch !== state.epoch) return;
-      if (job.status === 'complete' || job.status === 'completed') {
-        if (!job.result) throw new Error('This scan completed without a result. Check the companion terminal.');
-        state.job = null;
-        setBusy(false);
-        state.result = job.result;
-        if (state.lastClientNote) { state.result.coverage = state.result.coverage || {}; state.result.coverage.warnings = state.result.coverage.warnings || []; state.result.coverage.warnings.push(state.lastClientNote); }
-        state.selected = job.result.findings?.[0]?.id || null;
-        renderResult();
-        const elapsed = ((performance.now() - state.start) / 1000).toFixed(1);
-        const count = state.result.findings?.length || 0;
-        setStatus(count ? `Mapped ${state.result.summary.files_scanned} files \u00b7 ${count} finding${count === 1 ? '' : 's'} to review` : `Mapped ${state.result.summary.files_scanned} files \u00b7 no conflicts detected by supported rules`, '', elapsed + 's \u00b7 SNAPSHOT COMPLETE');
-      } else if (job.status === 'cancelled') {
-        state.job = null;
-        setBusy(false);
-        setStatus('Scan cancelled. ' + (state.result ? 'The previous completed snapshot is still displayed.' : 'Choose a repository when you are ready.'), '', 'CANCELLED');
-      } else if (job.status === 'error' || job.status === 'failed') {
-        throw new Error(asText(job.error) || 'The scan could not complete.');
-      } else {
-        window.setTimeout(() => pollJob(id, epoch), 350);
-      }
-    } catch (error) {
-      if (epoch !== state.epoch) return;
+  function finishJobError(message) {
+    state.job = null;
+    if (state.pollTimer !== null) window.clearTimeout(state.pollTimer);
+    state.pollTimer = null;
+    setBusy(false);
+    setStatus(message + (state.result ? ' The previous completed snapshot is still displayed.' : ''), 'error', 'SCAN DID NOT COMPLETE');
+    if (!state.result) showError(message);
+  }
+  function handleMissingJob(error) {
+    if (error.status === 404) { finishJobError('This job is no longer available. Start a fresh scan; the previous worker outcome is unknown.'); return true; }
+    if (error.status === 403) { finishJobError('The local session is no longer valid. Reload this page to reconnect to the companion.'); return true; }
+    return false;
+  }
+  function showDisconnected(message) {
+    state.disconnected = true;
+    $('connecting-overlay').hidden = true;
+    $('graph').classList.remove('muted-graph');
+    $('cancel-button').disabled = false;
+    $('refresh-button').disabled = false;
+    setStatus('Connection lost; the scan outcome is unknown. Refresh reconnects to this job. Cancel scan retries cancellation. ' + message, 'error', 'RECONNECT REQUIRED');
+  }
+  async function pollJob(id, epoch, failures = 0) {
+    if (epoch !== state.epoch || id !== state.job) return;
+    state.pollTimer = null;
+    let job;
+    try { job = await api('/api/jobs/' + encodeURIComponent(id)); }
+    catch (error) {
+      if (epoch !== state.epoch || id !== state.job) return;
+      if (handleMissingJob(error)) return;
+      if (failures < 3) {
+        setStatus(`Connection interrupted. Retrying job status (${failures + 1}/3)... Cancellation remains available.`, 'busy', 'RECONNECTING');
+        state.pollTimer = window.setTimeout(() => pollJob(id, epoch, failures + 1), 700 * (2 ** failures));
+      } else showDisconnected(error.message);
+      return;
+    }
+    if (epoch !== state.epoch || id !== state.job) return;
+    if (job.status === 'complete' || job.status === 'completed') {
+      if (!job.result || !job.result.summary || !Array.isArray(job.result.findings)) { finishJobError('This scan completed without a readable result. Start a fresh scan.'); return; }
       state.job = null;
       setBusy(false);
-      setStatus(error.message + (state.result ? ' The previous completed snapshot is still displayed.' : ''), 'error', 'SCAN DID NOT COMPLETE');
-      if (!state.result) showError(error.message);
+      state.result = job.result;
+      if (state.lastClientNote) { state.result.coverage = state.result.coverage || {}; state.result.coverage.warnings = state.result.coverage.warnings || []; state.result.coverage.warnings.push(state.lastClientNote); }
+      state.selected = job.result.findings?.[0]?.id || null;
+      renderResult();
+      const elapsed = ((performance.now() - state.start) / 1000).toFixed(1);
+      const count = state.result.findings?.length || 0;
+      setStatus(count ? `Mapped ${state.result.summary.files_scanned} files \u00b7 ${count} finding${count === 1 ? '' : 's'} to review` : `Mapped ${state.result.summary.files_scanned} files \u00b7 no conflicts detected by supported rules`, '', elapsed + 's \u00b7 SNAPSHOT COMPLETE');
+    } else if (job.status === 'cancelled') {
+      state.job = null;
+      setBusy(false);
+      setStatus('Scan cancelled. ' + (state.result ? 'The previous completed snapshot is still displayed.' : 'Choose a repository when you are ready.'), '', 'CANCELLED');
+    } else if (job.status === 'error' || job.status === 'failed') {
+      finishJobError(asText(job.error) || 'The scan could not complete.');
+    } else {
+      state.pollTimer = window.setTimeout(() => pollJob(id, epoch), 350);
     }
   }
   function showError(message) {
@@ -143,7 +179,7 @@
       flatButton.type = 'button';
       flatButton.dataset.findingId = finding.id;
       flatButton.setAttribute('aria-pressed', String(selected));
-      flatButton.append(tag(finding), el('strong', '', finding.title), el('p', '', finding.explanation), el('small', '', (finding.evidence || []).map(item => item.path + ':' + item.line).join(' \u2194 ')));
+      flatButton.append(tag(finding), el('strong', '', finding.title), el('p', '', finding.explanation), el('small', '', (finding.evidence || []).map(item => item.path + ':' + item.line + (Number.isInteger(item.column) && item.column > 0 ? ':' + item.column : '')).join(' \u2194 ')));
       flatButton.addEventListener('click', () => { selectFinding(finding.id); $('evidence-panel').scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); });
       flat.append(flatButton);
     });
@@ -171,8 +207,10 @@
       const source = el('article', 'source-block');
       const header = el('div', 'source-heading');
       const end = item.end_line && item.end_line !== item.line ? '\u2013' + item.end_line : '';
-      header.append(el('span', 'source-path', item.path), el('span', 'source-line', 'L' + item.line + end));
+      const column = Number.isInteger(item.column) && item.column > 0 ? ':' + item.column : '';
+      header.append(el('span', 'source-path', item.path), el('span', 'source-line', 'L' + item.line + column + end));
       source.append(header, el('pre', '', item.text));
+      if (item.truncated) { const startColumn = Number.isInteger(item.excerpt_start_column) && item.excerpt_start_column > 0 ? item.excerpt_start_column : 1; source.append(el('p', 'source-excerpt-note', 'Bounded excerpt: starts at column ' + startColumn + '. Part of this source line is omitted; use the source location above for the full context.')); }
       if (item.role) source.append(el('div', 'source-role', item.role));
       grid.append(source);
     });
@@ -301,12 +339,27 @@
   $('cancel-button').addEventListener('click', async () => {
     if (state.reading) { state.readCancelled = true; $('cancel-button').disabled = true; setStatus('Cancelling file selection...', 'busy'); return; }
     if (!state.job) return;
+    const id = state.job, epoch = state.epoch;
     $('cancel-button').disabled = true;
     setStatus('Cancelling the current scan\u2026', 'busy', 'CANCELLATION REQUESTED');
-    try { await api('/api/jobs/' + encodeURIComponent(state.job) + '/cancel', {}); }
-    catch (error) { $('cancel-button').disabled = false; setStatus('Could not confirm cancellation: ' + error.message, 'error'); }
+    try {
+      await api('/api/jobs/' + encodeURIComponent(id) + '/cancel', {});
+      if (id !== state.job || epoch !== state.epoch) return;
+      if (state.disconnected) { setBusy(true); setStatus('Cancellation requested. Confirming the job outcome...', 'busy'); pollJob(id, epoch); }
+    } catch (error) {
+      if (id !== state.job || epoch !== state.epoch) return;
+      if (handleMissingJob(error)) return;
+      $('cancel-button').disabled = false;
+      if (state.disconnected) showDisconnected('Could not confirm cancellation: ' + error.message);
+      else setStatus('Could not confirm cancellation: ' + error.message + ' Job status checks continue.', 'error');
+    }
   });
-  $('refresh-button').addEventListener('click', () => { if (!state.lastRequest) return; if (state.lastRequest.mode === 'files') { setStatus('Reselect files to read a fresh snapshot. Cancel keeps your current result.'); $(state.lastFilePicker).click(); } else startScan(state.lastRequest, state.lastClientNote); });
+  $('refresh-button').addEventListener('click', () => {
+    if (state.job && state.disconnected) { const id = state.job; setBusy(true); setStatus('Reconnecting to the existing job...', 'busy', 'RECONNECTING'); pollJob(id, state.epoch); return; }
+    if (!state.lastRequest) return;
+    if (state.lastRequest.mode === 'files') { setStatus('Reselect files to read a fresh snapshot. Cancel keeps your current result.'); $(state.lastFilePicker).click(); }
+    else startScan(state.lastRequest, state.lastClientNote);
+  });
   $('download-button').addEventListener('click', () => {
     if (!state.result) return;
     const url = URL.createObjectURL(new Blob([JSON.stringify(state.result, null, 2) + '\n'], { type: 'application/json' }));
