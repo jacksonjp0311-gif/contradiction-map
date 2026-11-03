@@ -1,0 +1,7 @@
+{
+  "name": "lumen-console",
+  "version": "0.4.0",
+  "dependencies": {
+    "orbit-client": "^2.0.0"
+  }
+}

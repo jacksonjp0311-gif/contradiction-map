@@ -1,0 +1,19 @@
+{
+  "release": "0.1.0",
+  "platform": "Windows",
+  "python": "3.12.10",
+  "node": "24.19.0",
+  "tests": {
+    "total": 62,
+    "passed": 61,
+    "skipped": 1,
+    "failed": 0,
+    "skip_reason": "Windows symbolic-link creation privilege unavailable"
+  },
+  "compileall": "passed",
+  "javascript_syntax": "passed",
+  "powershell_entrypoint": "passed",
+  "line_coverage": "not measured",
+  "branch_coverage": "not measured",
+  "precision_recall": "not measured"
+}

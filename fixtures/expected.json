@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "fixtures": {
+    "demo": {
+      "rules": {
+        "NPM001": 1,
+        "NPM002": 1,
+        "PY001": 1,
+        "PY002": 1,
+        "DOC001": 1
+      },
+      "deterministic": 2,
+      "heuristic": 3,
+      "findings": 5
+    },
+    "clean": {
+      "rules": {},
+      "findings": 0
+    },
+    "false-positive": {
+      "rules": {},
+      "findings": 0
+    }
+  },
+  "note": "Synthetic fixtures encode exactly supported patterns. They are regression checks, not measured real-world precision or semantic coverage."
+}

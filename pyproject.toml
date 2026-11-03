@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "contradiction-map"
+version = "0.1.0"
+description = "Local repository consistency checks with exact evidence for humans and agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "jacksonjp0311-gif"}]
+dependencies = []
+
+[project.scripts]
+contradiction-map = "contradiction_map.__main__:main"
+
+[tool.setuptools.package-data]
+contradiction_map = ["web/*", "demo/*", "demo/**/*"]
+
+[tool.setuptools.packages.find]
+include = ["contradiction_map*"]

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="session-token" content="__SESSION_TOKEN__">
+  <meta name="theme-color" content="#efe7ce">
+  <title>Contradiction Map &#183; Evidence, connected</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#findings">Skip to findings</a>
+  <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Contradiction Map home">
+      <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M7 8h13v12h13v12H20M7 32V8m26 0L20 20" stroke="currentColor" stroke-width="3" stroke-linejoin="miter"/></svg>
+      <span>CONTRADICTION<span class="brand-map"> MAP</span></span>
+    </a>
+    <span class="edition">REPOSITORY COHERENCE<br>FIELD INSTRUMENT / 001</span><div class="top-meta"><span class="local-badge"><i></i> LOCAL ENGINE</span><span class="version" id="version">v0.1</span><button class="icon-btn help-button" id="help-toggle" aria-expanded="false" aria-controls="help-panel" title="About this analysis">?</button></div>
+  </header>
+  <main>
+    <section class="intro" aria-labelledby="hero-title">
+      <div class="eyebrow"><span class="tiny-line"></span> LOCAL ANALYSIS / EVIDENCE, CONNECTED</div>
+      <h1 id="hero-title">See where your repository<br><span>disagrees.</span></h1>
+      <p class="intro-copy">Code says one thing. The docs say another.<br>Trace the tension. Read the evidence. Make the call.</p>
+    </section>
+    <section class="command" aria-label="Choose a repository">
+      <form id="scan-form" autocomplete="off">
+        <div class="command-main">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 6h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm0 0V3m4 3V3m4 3V3M8 11h8m-8 4h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <label class="sr-only" for="target-input">Public GitHub URL or local folder path</label><input id="target-input" placeholder="Paste a public GitHub URL or a local folder path&#8230;" spellcheck="false" required>
+          <button id="scan-button" class="primary-btn" type="submit"><span>Map repository</span><span aria-hidden="true">&#8599;</span></button>
+          <button id="cancel-button" class="cancel-btn" type="button" hidden>Cancel scan</button>
+        </div>
+      </form>
+      <div class="command-footer"><div class="input-actions"><button class="text-btn" id="folder-button" type="button"><span aria-hidden="true">&#8862;</span> Choose folder</button><button class="text-btn" id="files-button" type="button">Select files</button><input id="folder-input" type="file" webkitdirectory multiple hidden><input id="files-input" type="file" multiple hidden><span class="command-separator"></span><button class="text-btn demo-button" id="demo-button" type="button">Explore demo <span aria-hidden="true">&#8594;</span></button></div><span class="privacy-note"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7" rx="1.5" stroke="currentColor"/><path d="M5.5 7V4.5a2.5 2.5 0 0 1 5 0V7" stroke="currentColor"/></svg> Analysis stays on this machine</span></div>
+    </section>
+    <aside class="help-panel" id="help-panel" hidden><strong>A focused lens, not a verdict.</strong><p>Deterministic findings compare explicit literals using narrow rules. Heuristic candidates need human review. Confidence is a fixed rule weight, not a measured probability. The graph displays at most 18 files, prioritizing selected evidence; flat view lists all findings. No repository code is executed, no models are called, and no evidence is uploaded. A public GitHub scan contacts GitHub to download an unauthenticated, bounded snapshot.</p><p>Choose folder opens the browser folder picker; Select files opens its file picker. Only the files you explicitly select are read and sent to the local companion on this machine. Manual refresh rereads a local path or public URL. For browser-selected files, Refresh reopens the file picker so you can select a fresh snapshot. Cancel keeps the previous result. Results describe only supported rules and readable, included files.</p></aside>
+    <div class="status-bar" id="status-bar" role="status" aria-live="polite"><div class="status-left"><span class="status-dot" id="status-dot"></span><span id="status-text">Ready to connect the evidence</span></div><span id="scan-timing">NO API KEY REQUIRED</span></div>
+    <section class="workspace" aria-label="Repository analysis">
+      <div class="map-column">
+        <section class="map-card" aria-label="Evidence graph">
+          <div class="panel-header"><div><span class="eyebrow small">01 / REPOSITORY NEXUS</span><h2 id="map-title">Every claim has a connection.</h2></div><div class="view-switch" role="group" aria-label="Result view"><button id="graph-view-button" class="view-button active" type="button" aria-pressed="true">Graph</button><button id="flat-view-button" class="view-button" type="button" aria-pressed="false">Flat view</button></div></div>
+          <div id="graph-container" class="graph-container"><svg id="graph" viewBox="0 0 820 470" role="img" aria-label="An empty evidence network. Scan a repository or explore the demo to connect real files."><g id="graph-background"></g><g id="graph-edges"></g><g id="graph-nodes"></g></svg><div class="graph-empty" id="graph-empty"><span class="orbit-glyph" aria-hidden="true">&#8984;</span><strong>Your repository, in perspective.</strong><span>Connect a folder or try the synthetic demo.</span></div><div class="connecting-overlay" id="connecting-overlay" hidden><div class="connecting-orbits"><i></i><i></i><i></i></div><strong>Connecting the evidence</strong><span>Reading files. Comparing explicit claims.</span></div><div class="graph-key"><span><i class="key-dot lilac"></i> source file</span><span><i class="key-dot coral"></i> conflicting evidence</span><span class="graph-key-right">SELECT A FINDING TO TRACE IT</span></div></div>
+          <div id="flat-container" class="flat-container" hidden><p class="flat-intro">All findings, in reading order. Choose one to inspect its exact evidence.</p><div id="flat-results"></div></div>
+          <div class="map-stats" id="map-stats"><div><strong id="stat-files">&#8212;</strong><span>files read</span></div><div><strong id="stat-deterministic">&#8212;</strong><span>deterministic</span></div><div><strong id="stat-heuristic">&#8212;</strong><span>candidates</span></div><button id="refresh-button" class="refresh-btn" disabled type="button"><span aria-hidden="true">&#8635;</span> Refresh</button></div>
+        </section>
+        <section class="evidence-card" id="evidence-panel" aria-labelledby="evidence-title"><div class="panel-header"><div><span class="eyebrow small">02 / THE SOURCE OF THE TENSION</span><h2 id="evidence-title">Evidence over assumptions.</h2></div><button id="download-button" class="text-btn" type="button" disabled>Export JSON <span aria-hidden="true">&#8595;</span></button></div><div id="evidence-content" class="evidence-content"><div class="evidence-placeholder"><span aria-hidden="true">&#8961;</span><p>Select a finding to compare exact source lines.<br><small>Context, rule weights, and limitations travel with every result.</small></p></div></div></section>
+      </div>
+      <aside class="findings-panel" id="findings" aria-labelledby="findings-title" tabindex="-1"><div class="findings-heading"><div><span class="eyebrow small">03 / PRIORITIZED FOR REVIEW</span><h2 id="findings-title">Potential conflicts <span id="finding-count">0</span></h2></div></div><div class="filter-row" role="group" aria-label="Filter findings"><button class="filter-button active" data-filter="all" aria-pressed="true">All</button><button class="filter-button" data-filter="deterministic" aria-pressed="false">Deterministic</button><button class="filter-button" data-filter="heuristic" aria-pressed="false">Candidates</button></div><div id="findings-list" class="findings-list"><div class="findings-empty"><svg viewBox="0 0 60 60" fill="none" aria-hidden="true"><circle cx="30" cy="30" r="21" stroke="currentColor" stroke-dasharray="3 6"/><circle cx="30" cy="30" r="8" stroke="currentColor"/><path d="M30 4v12m0 28v12M4 30h12m28 0h12" stroke="currentColor"/></svg><strong>Nothing mapped. Yet.</strong><p>Findings will appear here, ranked by severity and fixed rule weight.</p><button class="text-btn" id="empty-demo-button">Start with the demo <span aria-hidden="true">&#8594;</span></button></div></div><div class="review-note"><span aria-hidden="true">&#9672;</span><p>A signal to investigate.<br><strong>You decide what needs to change.</strong></p></div></aside>
+    </section>
+    <details class="coverage-panel" id="coverage-panel"><summary><span>Scope & limitations</span><span id="coverage-summary">Read what this engine can&#8212;and cannot&#8212;see</span><span aria-hidden="true">&#65291;</span></summary><div id="coverage-content"><p>This local engine compares a small set of explicit, supported declarations. No findings does not mean a repository is consistent. Dynamic behavior, semantic intent, security properties, and unsupported formats remain outside its scope. Confidence is a fixed rule weight, not a measured probability. The graph displays at most 18 files, prioritizing selected evidence; flat view lists all findings.</p></div></details>
+  </main>
+  <footer><span class="footer-brand">CONTRADICTION MAP</span><span>Local first. Evidence always.</span><span id="footer-rules">A focused initial engine &#183; No AI inference</span></footer>
+</body>
+</html>
